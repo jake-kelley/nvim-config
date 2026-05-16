@@ -74,17 +74,15 @@ All of the above must be on `$PATH` / `$env:PATH`. Open a fresh terminal after i
 
 ## Deploy — Linux / macOS
 
-The shell pane is hardcoded to `pwsh -NoLogo`, and the `:cd` sync sends a PowerShell `Set-Location` command. To use bash/zsh:
+The shell pane and `:cd` sync auto-adapt to the platform: on macOS / Linux the shell is `$SHELL` (zsh/bash/fish/etc.) and the `:cd` sync sends POSIX `cd`. No file edits needed.
 
-1. Edit `lua/config/layout.lua`:
-   - In `start_shell_terminal()`, replace `"terminal pwsh -NoLogo"` with `"terminal"` (or `"terminal bash"`, etc.).
-   - In the `DirChanged` autocmd, replace the `Set-Location -LiteralPath '...'` line with `cd '<escaped>'` (or your shell's equivalent).
-
-2. Back up your existing config:
+1. Back up your existing config:
    ```bash
    mv ~/.config/nvim       ~/.config/nvim.bak.$(date +%s)        2>/dev/null
    mv ~/.local/share/nvim  ~/.local/share/nvim.bak.$(date +%s)   2>/dev/null
    ```
+
+2. Make sure `$SHELL` is set to what you actually want to run inside the bottom-right pane (`echo $SHELL`). If empty, the config falls back to `/bin/sh`.
 
 3. Clone and launch:
    ```bash

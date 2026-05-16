@@ -11,6 +11,33 @@ local TASK_PANEL_WIDTH = 0.1875
 -- 25% panel bumped up by another 25% → 0.3125 of total lines.
 local TERMINAL_HEIGHT  = 0.3125
 
+-- Platform-aware shell pick: Windows uses PowerShell 7; macOS / Linux use
+-- whatever $SHELL is set to (falling back to /bin/sh). Each entry also
+-- knows how to format a `cd` command for its shell -- needed by the
+-- DirChanged autocmd that mirrors :cd into the shell pane.
+local SHELL_CONFIG = (function()
+  if vim.fn.has("win32") == 1 then
+    return {
+      cmd = "pwsh -NoLogo",
+      -- PowerShell single-quoted strings are literal; double any embedded
+      -- single quote. -LiteralPath skips PS path-wildcard expansion.
+      cd_cmd = function(path)
+        local escaped = path:gsub("'", "''")
+        return "Set-Location -LiteralPath '" .. escaped .. "'\r"
+      end,
+    }
+  end
+  local sh = vim.env.SHELL or "/bin/sh"
+  return {
+    cmd = sh,
+    -- POSIX single quotes are literal; escape embedded ' by close+esc+reopen.
+    cd_cmd = function(path)
+      local escaped = path:gsub("'", "'\\''")
+      return "cd '" .. escaped .. "'\n"
+    end,
+  }
+end)()
+
 -- Buffer-local tag so we can find managed buffers reliably.
 local TAG_VAR = "cowork_layout_kind"  -- "tasks" | "claude" | "shell"
 
@@ -185,11 +212,10 @@ local function start_claude_terminal()
 end
 
 local function start_shell_terminal()
-  -- PowerShell 7 (`pwsh`) instead of cmd. -NoLogo skips the banner.
-  vim.cmd("terminal pwsh -NoLogo")
+  vim.cmd("terminal " .. SHELL_CONFIG.cmd)
   tag_current_buf("shell")
   vim.bo.bufhidden = "wipe"
-  pcall(vim.api.nvim_buf_set_name, 0, "term://pwsh")
+  pcall(vim.api.nvim_buf_set_name, 0, "term://shell")
 end
 
 local function open_bottom_terminals()
@@ -350,11 +376,7 @@ function M.setup()
       if not buf then return end
       local job_id = vim.b[buf].terminal_job_id
       if not job_id then return end
-      -- PowerShell single-quoted strings are literal; double any embedded
-      -- quotes to escape. Set-Location -LiteralPath handles brackets, $, etc.
-      local escaped = cwd:gsub("'", "''")
-      pcall(vim.api.nvim_chan_send, job_id,
-        "Set-Location -LiteralPath '" .. escaped .. "'\r")
+      pcall(vim.api.nvim_chan_send, job_id, SHELL_CONFIG.cd_cmd(cwd))
     end,
   })
 
